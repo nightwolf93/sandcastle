@@ -26,6 +26,25 @@ npm run dev        # http://localhost:5173
 
 ---
 
+## Déploiement
+
+Le projet est un site statique : `npm run build` puis servir `dist/`.
+
+Sur **Vercel**, tout est décrit dans `vercel.json` : le framework est détecté
+(Vite), `npm ci` saute le téléchargement de Chromium par Puppeteer (utile
+seulement pour les tests), et les en-têtes COOP/COEP sont envoyés sur toutes
+les routes pour que `SharedArrayBuffer` soit disponible en production. Il
+suffit d'importer le dépôt GitHub dans Vercel, sans autre réglage.
+
+Sur un autre hébergeur, reproduire ces deux en-têtes :
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+---
+
 ## Ce qui est réellement simulé
 
 Rien n'est scripté ni animé à la main. Tout ce que vous voyez sort de trois

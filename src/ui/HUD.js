@@ -115,6 +115,11 @@ export class HUD {
     this.root = root;
     this.hidden = false;
     this.toasts = [];
+    // Jauges du profil de plage personnalise. build() les remplit, mais
+    // syncCustomBounds() est appele (via noteSize) AVANT leur creation :
+    // elles doivent exister des le constructeur.
+    this.customControls = [];
+    this.customFeatures = [];
     this.build();
     this.bind();
   }
@@ -448,7 +453,6 @@ export class HUD {
     this.customSketch.classList.add('beach-sketch-big');
     customBody.appendChild(this.customSketch);
     const customRows = el('div', 'builder-section', customBody);
-    this.customControls = [];
     const fmtOf = {
       m: (v) => `${v.toFixed(1).replace('.', ',')} m`,
       cm: (v) => `${Math.round(v * 100)} cm`,
@@ -471,7 +475,6 @@ export class HUD {
       });
       this.customControls.push({ field: f, input, value, format });
     }
-    this.customFeatures = [];
     for (const feat of CUSTOM_FEATURES) {
       const row = el('label', 'builder-toggle', customRows);
       const input = el('input', null, row);
