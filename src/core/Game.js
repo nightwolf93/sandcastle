@@ -283,6 +283,9 @@ export class Game {
     let guard = 0;
     let total = 1;
     while (this.mesher.busy > 0 && guard++ < 4000) {
+      // Plus aucun worker ne se charge : mieux vaut une erreur lisible
+      // qu'une barre figee (voir SPAWN_ATTEMPTS dans MesherPool).
+      if (this.mesher.error) throw this.mesher.error;
       await frame();
       this.mesher.collect(4096);
       total = Math.max(total, this.mesher.stats.meshed + this.mesher.busy);

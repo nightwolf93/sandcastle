@@ -36,7 +36,12 @@ seulement pour les tests), et les en-têtes COOP/COEP sont envoyés sur toutes
 les routes pour que `SharedArrayBuffer` soit disponible en production. Il
 suffit d'importer le dépôt GitHub dans Vercel, sans autre réglage.
 
-Sur un autre hébergeur, reproduire ces deux en-têtes :
+Sur un autre hébergeur, reproduire ces deux en-têtes **sur toutes les
+réponses**, le script du worker de maillage compris (`/assets/MeshWorker-*.js`) :
+un worker dédié servi sans COEP est refusé par une page isolée, et un
+navigateur qui en garde une copie sans en-tête dans son cache (assets
+« immutable ») bloquerait au démarrage. Le pool de workers détecte ce cas et
+rafraîchit l'entrée de cache tout seul, mais autant ne pas en dépendre.
 
 ```
 Cross-Origin-Opener-Policy: same-origin

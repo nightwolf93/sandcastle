@@ -17,9 +17,28 @@
 
 import { CHUNK, CHUNK_COUNT, MESH_WORKERS, VOXEL, ORIGIN_X, ORIGIN_Y, ORIGIN_Z, CX, CZ, NX, NZ } from '../../core/Config.js';
 import { BORDER } from './SurfaceNets.js';
+// URL du script de worker, bundle par Vite (`?worker&url`). On la garde sous
+// la main pour pouvoir re-creer un worker dont le chargement a echoue.
+import meshWorkerUrl from './MeshWorker.js?worker&url';
 
 const BLOCK = CHUNK + 2 * BORDER;
 const BLOCK_SIZE = BLOCK * BLOCK * BLOCK;
+
+/**
+ * Nombre d'essais de chargement d'un worker avant d'abandonner.
+ *
+ * Un worker peut echouer a se charger SANS AUCUN MESSAGE : c'est ce qui
+ * arrive quand le navigateur ressert depuis son cache HTTP une copie du
+ * script servie sans en-tete COEP (deploiement anterieur, proxy) alors que la
+ * page, elle, est isolee (COOP/COEP) : Chrome refuse alors le script d'un
+ * worker dedie et se contente d'un evenement `error` vide. Les assets etant
+ * caches un an sous un nom hache, l'entree fautive ne se corrige jamais seule.
+ *  - essai 1 : URL telle quelle ;
+ *  - essai 2 : apres `fetch(url, { cache: 'reload' })`, qui remplace l'entree
+ *    de cache par une reponse fraiche (avec ses en-tetes) ;
+ *  - essai 3 : URL avec un parametre de cache, en dernier recours.
+ */
+const SPAWN_ATTEMPTS = 3;
 
 // --- PERF (cadence de remaillage, debut) -----------------------------------
 /**
@@ -55,6 +74,14 @@ export class MesherPool {
     this.bufferPool = [];
     this.ready = false;
     this.readyCount = 0;
+    /** Workers qui ont repondu `ready` (les autres sont encore en chargement). */
+    this.readySet = new Set();
+    /** Workers crees mais pas encore prets, re-tentatives comprises. */
+    this.loading = 0;
+    /** Rafraichissement du cache HTTP du script, partage entre les workers. */
+    this.cacheRefresh = null;
+    /** Erreur fatale : plus aucun worker ne peut se charger. */
+    this.error = null;
     this.stats = { meshed: 0, lastMs: 0, avgMs: 0 };
 
     // --- PERF (cadence de remaillage, debut) --------------------------------
@@ -72,28 +99,72 @@ export class MesherPool {
 
     /** Les workers lisent le champ directement (memoire partagee). */
     this.shared = !!field.shared;
-    for (let i = 0; i < MESH_WORKERS; i++) {
-      // Le nom du worker porte la taille de la carte : Config.js le lit avant
-      // tout, un worker n'ayant ni localStorage ni parametre d'URL.
-      const w = new Worker(new URL('./MeshWorker.js', import.meta.url), { type: 'module', name: `map:${NX}x${NZ}` });
-      w.onmessage = (ev) => this.handle(w, ev.data);
-      const init = { type: 'init', chunkSize: CHUNK };
-      if (this.shared) {
-        init.shared = {
-          D: field.density.buffer, M: field.moisture.buffer,
-          P: field.packing.buffer, T: field.material.buffer,
-        };
+    for (let i = 0; i < MESH_WORKERS; i++) this.spawn(1);
+  }
+
+  /** Cree un worker et lui envoie le champ. `attempt` : numero d'essai (1..). */
+  spawn(attempt) {
+    let url = meshWorkerUrl;
+    if (attempt >= 3) url += (url.includes('?') ? '&' : '?') + 'r=' + Date.now();
+    // Le nom du worker porte la taille de la carte : Config.js le lit avant
+    // tout, un worker n'ayant ni localStorage ni parametre d'URL.
+    const w = new Worker(url, { type: 'module', name: `map:${NX}x${NZ}` });
+    w.onmessage = (ev) => this.handle(w, ev.data);
+    w.onerror = (ev) => this.onWorkerError(w, ev, attempt);
+    const init = { type: 'init', chunkSize: CHUNK };
+    if (this.shared) {
+      const f = this.field;
+      init.shared = {
+        D: f.density.buffer, M: f.moisture.buffer,
+        P: f.packing.buffer, T: f.material.buffer,
+      };
+    }
+    w.postMessage(init);
+    this.workers.push(w);
+    this.loading++;
+  }
+
+  /** Voir SPAWN_ATTEMPTS. */
+  onWorkerError(w, ev, attempt) {
+    if (this.readySet.has(w)) {
+      // Erreur d'execution d'un worker en service : on la montre, il reste.
+      console.error('Worker de maillage :', ev.message || ev);
+      return;
+    }
+    ev.preventDefault?.();
+    w.terminate();
+    const k = this.workers.indexOf(w);
+    if (k >= 0) this.workers.splice(k, 1);
+    this.loading--;
+
+    if (attempt >= SPAWN_ATTEMPTS) {
+      console.error(`Worker de maillage : chargement impossible apres ${attempt} essais (${meshWorkerUrl}).`);
+      if (this.loading === 0 && this.readyCount === 0) {
+        this.error = new Error(
+          'Impossible de charger les workers de maillage. ' +
+          'Rechargez la page en ignorant le cache (Ctrl+Maj+R).'
+        );
       }
-      w.postMessage(init);
-      this.workers.push(w);
+      return;
+    }
+    console.warn(`Worker de maillage : chargement echoue (essai ${attempt}${ev.message ? " : " + ev.message : ""}), nouvelle tentative.`);
+    this.loading++; // reserve la re-tentative : le pool n'est pas mort
+    const retry = () => { this.loading--; this.spawn(attempt + 1); };
+    if (attempt === 1 && typeof fetch === 'function') {
+      this.cacheRefresh ??= fetch(meshWorkerUrl, { cache: 'reload' }).then(() => {}, () => {});
+      this.cacheRefresh.then(retry);
+    } else {
+      retry();
     }
   }
 
   handle(w, m) {
     if (m.type === 'ready') {
       this.readyCount++;
+      this.readySet.add(w);
+      this.loading--;
       this.idle.push(w);
-      if (this.readyCount === this.workers.length) this.ready = true;
+      if (this.readyCount >= MESH_WORKERS) this.ready = true;
       this.pump();
       return;
     }
