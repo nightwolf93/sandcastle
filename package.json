@@ -1,0 +1,41 @@
+{
+  "name": "sandcastle",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Sandcastle — un sandbox cozy 3D de construction de chateaux de sable avec physique granulaire realiste",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "test": "node tools/test-mesher.mjs && node tools/test-physics.mjs && node tools/test-water-invariants.mjs && node tools/test-water-render.mjs && node tools/test-sand-builder.mjs && node tools/test-foundation.mjs && node tools/test-hand.mjs && node tools/test-save.mjs && node tools/test-extract.mjs && node tools/test-water-gpu.mjs && node tools/test-sculpt.mjs && node tools/test-beach-styles.mjs && node tools/test-map-size.mjs",
+    "test:mesher": "node tools/test-mesher.mjs",
+    "test:physics": "node tools/test-physics.mjs",
+    "test:water": "node tools/test-water-invariants.mjs",
+    "bench:water": "node tools/bench-water.mjs",
+    "test:water-render": "node tools/test-water-render.mjs",
+    "test:sand-builder": "node tools/test-sand-builder.mjs",
+    "test:foundation": "node tools/test-foundation.mjs",
+    "test:hand": "node tools/test-hand.mjs",
+    "test:save": "node tools/test-save.mjs",
+    "test:extract": "node tools/test-extract.mjs",
+    "test:water-gpu": "node tools/test-water-gpu.mjs",
+    "test:sculpt": "node tools/test-sculpt.mjs",
+    "test:beaches": "node tools/test-beach-styles.mjs",
+    "test:map-size": "node tools/test-map-size.mjs",
+    "test:play": "node tools/test-play.mjs",
+    "test:tools": "node tools/test-tools.mjs",
+    "shot": "node tools/shot.mjs",
+    "castle": "node tools/build-castle.mjs",
+    "test:tide": "node tools/test-tide.mjs",
+    "test:all": "npm test && npm run test:play && npm run test:tools && npm run test:trench && npm run test:tide",
+    "test:trench": "node tools/test-trench.mjs"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "puppeteer": "^25.9.0",
+    "vite": "^7.1.14"
+  }
+}

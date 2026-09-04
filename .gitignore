@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Generated screenshots (tools/shot.mjs) — only the two used by README are tracked
+shots/*
+!shots/castle-jeu.png
+!shots/tide-3-haute.png
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
